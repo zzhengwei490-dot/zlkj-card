@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局重置，确保深色背景生效 */
+body {
+  background-color: #0a0f1c;
+  color: #e2e8f0;
+}
