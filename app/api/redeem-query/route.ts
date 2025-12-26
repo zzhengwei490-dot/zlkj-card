@@ -1,23 +1,9 @@
 import { NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic"; // 禁用缓存，避免拿到旧数据
+export const dynamic = "force-dynamic";
 
 const REDEEM_URL = "https://mercury.wxie.de/api/keys/redeem";
 const QUERY_URL = "https://mercury.wxie.de/api/keys/query";
-
-type AnyObj = Record<string, any>;
-
-function getByPath(obj: any, path: string) {
-  return path.split(".").reduce((acc, k) => (acc ? acc[k] : undefined), obj);
-}
-
-function pickFirst(obj: any, paths: string[]) {
-  for (const p of paths) {
-    const v = getByPath(obj, p);
-    if (v !== undefined && v !== null && v !== "") return v;
-  }
-  return undefined;
-}
 
 async function postJson(url: string, payload: any, timeoutMs = 15000) {
   const controller = new AbortController();
@@ -46,111 +32,83 @@ async function postJson(url: string, payload: any, timeoutMs = 15000) {
   }
 }
 
-function extractCard(raw: any) {
-  if (!raw) return null;
-
-  const candidates = [
-    raw,
-    raw?.data,
-    raw?.result,
-    raw?.data?.data,
-    raw?.data?.result,
-    raw?.card,
-    raw?.data?.card,
-  ].filter(Boolean);
-
-  const get = (paths: string[]) => {
-    for (const c of candidates) {
-      const v = pickFirst(c, paths);
-      if (v !== undefined && v !== null && v !== "") return v;
-    }
-    return undefined;
-  };
-
-  const cardNumber = get(["cardNumber", "card_number", "number", "card.number"]);
-  const cvv = get(["cvv", "cvc", "card.cvv", "card.cvc"]);
-  const expMonth = get(["expMonth", "exp_month", "card.expMonth", "card.exp_month"]);
-  const expYear = get(["expYear", "exp_year", "card.expYear", "card.exp_year"]);
-  const expiry = get(["expiry", "expires", "exp", "valid_thru"]);
-  const validMinutes = get(["validMinutes", "valid_minutes", "ttl_minutes", "ttl", "duration_minutes"]);
-  const redeemTime = get([
-    "redeemTime",
-    "redeem_time",
-    "redeemedAt",
-    "redeemed_at",
-    "activationTime",
-    "activation_time",
-    "createdAt",
-    "created_at",
-  ]);
-
-  let expiryText: string | undefined = expiry ? String(expiry) : undefined;
-  if (!expiryText && expMonth && expYear) {
-    expiryText = `${String(expMonth).padStart(2, "0")}/${expYear}`;
-  }
-
-  const minutesNum = validMinutes !== undefined ? Number(validMinutes) : undefined;
-  const validMinutesNum = Number.isFinite(minutesNum as number) ? (minutesNum as number) : undefined;
-
-  return {
-    cardNumber: cardNumber ? String(cardNumber) : undefined,
-    cvv: cvv ? String(cvv) : undefined,
-    expiry: expiryText,
-    validMinutes: validMinutesNum,
-    redeemTime: redeemTime ? String(redeemTime) : undefined,
-  };
-}
-
 export async function POST(request: Request) {
   const startedAt = new Date().toISOString();
 
-  let body: AnyObj = {};
+  let body: Record<string, any> = {};
   try {
     body = (await request.json()) ?? {};
   } catch {
     return NextResponse.json({ ok: false, error: "请求体不是合法 JSON" }, { status: 400 });
   }
 
-  const key = body.key ?? body.code ?? body.cardKey ?? body.token;
-  if (!key || typeof key !== "string") {
-    return NextResponse.json({ ok: false, error: "缺少 key（卡密）字段" }, { status: 400 });
+  // ✅ 关键：上游要的是 key_id
+  const keyId =
+    body.key_id ??
+    body.key ??
+    body.code ??
+    body.cardKey ??
+    body.token;
+
+  if (!keyId || typeof keyId !== "string") {
+    return NextResponse.json({ ok: false, error: "缺少 key_id（卡密）字段" }, { status: 400 });
   }
 
-  // 兼容不同字段名：同时发送 key 和 code（上游接受哪个都行）
-  const payload = { ...body, key, code: key };
+  const payload = { ...body, key_id: keyId };
 
-  // 1) 先激活/兑换（失败也继续走查询）
+  // 1) 先 redeem（失败也继续 query，兼容“已兑换过”的卡密）
   const redeem = await postJson(REDEEM_URL, payload).catch((e) => ({
     ok: false,
     status: 500,
     data: { error: String(e) },
   }));
 
-  // 2) 再查询
+  // 2) 再 query
   const query = await postJson(QUERY_URL, payload).catch((e) => ({
     ok: false,
     status: 500,
     data: { error: String(e) },
   }));
 
-  // 优先用 query 的数据（更像最终状态），query 没有再用 redeem 的
-  const card = extractCard(query.data) ?? extractCard(redeem.data);
+  // ✅ 以 query 为准（更像最终状态）
+  const q = query.data || {};
+  const r = redeem.data || {};
 
-  const activatedAt =
-    card?.redeemTime ??
-    pickFirst(query.data, ["redeemTime", "redeem_time", "redeemedAt", "redeemed_at"]) ??
-    pickFirst(redeem.data, ["redeemTime", "redeem_time", "redeemedAt", "redeemed_at"]) ??
-    startedAt;
+  const success = (q?.success === true) || (r?.success === true);
 
-  const ok = Boolean(card?.cardNumber || card?.cvv) && (query.ok || redeem.ok);
+  const cardRaw = q?.card ?? r?.card;
+  const card = cardRaw
+    ? {
+        cardNumber: cardRaw?.pan ? String(cardRaw.pan) : undefined,
+        cvv: cardRaw?.cvv ? String(cardRaw.cvv) : undefined,
+        expiry:
+          cardRaw?.exp_month && cardRaw?.exp_year
+            ? `${String(cardRaw.exp_month).padStart(2, "0")}/${cardRaw.exp_year}`
+            : undefined,
+        validMinutes:
+          typeof (q?.expire_minutes ?? r?.expire_minutes) !== "undefined"
+            ? Number(q?.expire_minutes ?? r?.expire_minutes)
+            : undefined,
+        // 可选：到期时间（如果你想显示）
+        expireTime: cardRaw?.expire_time ? String(cardRaw.expire_time) : undefined,
+      }
+    : undefined;
+
+  // ✅ 你要的“激活时间”：上游字段 used_time
+  const activatedAt = q?.used_time ?? r?.used_time ?? startedAt;
+
+  const ok = Boolean(success && (card?.cardNumber || card?.cvv));
+
+  const error =
+    ok
+      ? undefined
+      : (q?.error || q?.message || r?.error || r?.message || "激活/查询失败，请检查卡密是否正确");
 
   return NextResponse.json({
     ok,
+    error,
     activatedAt,
     card,
-    meta: {
-      redeemStatus: redeem.status,
-      queryStatus: query.status,
-    },
+    meta: { redeemStatus: redeem.status, queryStatus: query.status },
   });
 }
