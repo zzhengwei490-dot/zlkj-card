@@ -71,7 +71,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[#0b1220]">
       <div className="w-full max-w-md rounded-2xl bg-white/5 border border-white/10 backdrop-blur p-6">
-        <h1 className="text-center text-2xl font-semibold text-white">Mercury 虚拟卡</h1>
+        <h1 className="text-center text-2xl font-semibold text-white">智链科技 虚拟卡</h1>
         <p className="text-center text-sm text-white/60 mt-2">输入卡密兑换或查询虚拟信用卡</p>
 
         <input
