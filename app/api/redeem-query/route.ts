@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const REDEEM_URL = "https://mercury.wxie.de/api/keys/redeem";
-const QUERY_URL = "https://mercury.wxie.de/api/keys/query";
+// 🔴 修改 1：更换为新的接口域名
+const REDEEM_URL = "https://actcard.xyz/api/keys/redeem";
+const QUERY_URL = "https://actcard.xyz/api/keys/query";
 
 async function postJson(url: string, payload: any, timeoutMs = 15000) {
   const controller = new AbortController();
@@ -12,7 +13,11 @@ async function postJson(url: string, payload: any, timeoutMs = 15000) {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        // 🔴 修改 2：增加 User-Agent 伪装成浏览器，防止 fetch failed
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
       body: JSON.stringify(payload),
       cache: "no-store",
       signal: controller.signal,
@@ -89,7 +94,7 @@ export async function POST(request: Request) {
           typeof (q?.expire_minutes ?? r?.expire_minutes) !== "undefined"
             ? Number(q?.expire_minutes ?? r?.expire_minutes)
             : undefined,
-        // 可选：到期时间（如果你想显示）
+        // 可选：到期时间
         expireTime: cardRaw?.expire_time ? String(cardRaw.expire_time) : undefined,
       }
     : undefined;
