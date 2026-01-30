@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const ACT_REDEEM_URL = "https://actcard.xyz/api/keys/redeem";
 const ACT_QUERY_URL = "https://actcard.xyz/api/keys/query";
 
-// 🟢 新增接口：HolyMasterCard (根据提供的截图)
+// 🟢 新增接口：HolyMasterCard
 const HOLY_ACTIVATE_URL = "http://holymastercard.com/api/license/activate";
 
 async function postJson(url: string, payload: any, timeoutMs = 15000) {
@@ -74,10 +74,9 @@ export async function POST(request: Request) {
 
   if (isHolyMaster) {
     // ===========================
-    // 🟢 HolyMaster 处理逻辑
+    // 🟢 HolyMaster 处理逻辑 (修复版)
     // ===========================
     
-    // HolyMaster 只需要一个 activate 接口，通常也是幂等的（已激活会返回详情）
     const holyRes = await postJson(HOLY_ACTIVATE_URL, { licenseKey: keyId }).catch((e) => ({
         ok: false,
         status: 500,
@@ -93,26 +92,38 @@ export async function POST(request: Request) {
     if (success && hData.card) {
         const raw = hData.card;
         card = {
-            cardNumber: raw.cardNumber, // 字段名直接对应
+            cardNumber: raw.cardNumber, 
             cvv: raw.cvv,
             // 格式化有效期：MM/YYYY
             expiry: raw.expiryMonth && raw.expiryYear 
                 ? `${String(raw.expiryMonth).padStart(2, "0")}/${raw.expiryYear}` 
                 : undefined,
             // 映射其他可选字段
-            expireTime: hData.expiresAt, // ISO 时间字符串
-            status: hData.licenseStatus
+            expireTime: hData.expiresAt, 
+            status: hData.licenseStatus,
+
+            // ✅ 修复 Bug 1: 强制设置有效时间为 60 分钟
+            // Holy 接口没返回 validMinutes，手动补齐以显示“1小时”
+            validMinutes: 60 
         };
         ok = true;
-        // 如果接口返回了激活时间则使用，否则用当前时间
-        if (hData.activatedAt) activatedAt = hData.activatedAt;
+
+        // ✅ 修复 Bug 2: 激活时间锁定为首次创建时间
+        // 优先使用 card.createdAt (卡片首次生成时间)，如果没有才用当前时间
+        if (raw.createdAt) {
+            activatedAt = raw.createdAt;
+        } else if (hData.activatedAt) {
+            activatedAt = hData.activatedAt;
+        }
+        // 如果上面都没有，保持默认为 startedAt (当前时间)
+
     } else {
         error = hData.message || hData.error || "HolyMaster 激活失败，请检查卡密";
     }
 
   } else {
     // ===========================
-    // 🔴 ActCard 处理逻辑 (保持原有)
+    // 🔴 ActCard 处理逻辑 (保持原有不变)
     // ===========================
 
     const payload = { ...body, key_id: keyId };
@@ -150,6 +161,7 @@ export async function POST(request: Request) {
                 : undefined,
             expireTime: cardRaw.expire_time ? String(cardRaw.expire_time) : undefined,
         };
+        // ActCard 的时间逻辑保持不变
         activatedAt = q?.used_time ?? r?.used_time ?? startedAt;
     }
 
