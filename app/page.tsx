@@ -19,56 +19,44 @@ type ApiResp = {
 
 // --- 2. 模拟账单地址数据 ---
 const MOCK_ADDRESS = {
-  fullName: "Jennifer Nguyen",
-  street: "201 Whitehall Court",
-  city: "American Canyon",
+  fullName: "Niko Zhang",
+  street: "123 Tech Lane",
+  city: "San Francisco",
   state: "CA",
-  zip: "94503",
+  zip: "94107",
   country: "US",
 };
 
-// --- 3. 辅助函数 ---
+// --- 3. 辅助组件与图标 ---
 function formatTime(input?: string) {
   if (!input) return "--";
   const d = new Date(input);
   if (!Number.isFinite(d.getTime())) return input;
   return d.toLocaleString("zh-CN", { 
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit',
-    hour12: false 
+    year: 'numeric', month: '2-digit', day: '2-digit', 
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
   });
 }
 
-// 剪贴板图标组件 (用于消费记录空状态)
-function ClipboardIcon() {
-  return (
-    <svg className="w-10 h-10 text-slate-500 mb-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-    </svg>
-  );
-}
+const CopyIcon = () => (
+  <svg className="w-3.5 h-3.5 text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+);
 
-// 信用卡图标组件 (用于初始空状态)
-function CreditCardIcon() {
-  return (
-    <svg className="w-14 h-14 text-blue-400 mb-4 opacity-80" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4ZM20 18H4V12H20V18ZM20 8H4V6H20V8Z" />
-      <rect x="16" y="14" width="2" height="2" fill="#FBBF24" />
-    </svg>
-  );
-}
+const MastercardLogo = () => (
+  <svg width="40" height="24" viewBox="0 0 48 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="15" fill="#EB001B" fillOpacity="0.9"/>
+    <circle cx="33" cy="15" r="15" fill="#F79E1B" fillOpacity="0.9"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M24 15C24 9.84545 26.6909 5.29091 30.8182 2.50909C28.8 1.09091 26.5091 0.272727 24 0.272727C21.4909 0.272727 19.2 1.09091 17.1818 2.50909C21.3091 5.29091 24 9.84545 24 15ZM24 15C24 20.1545 21.3091 24.7091 17.1818 27.4909C19.2 28.9091 21.4909 29.7273 24 29.7273C26.5091 29.7273 28.8 28.9091 30.8182 27.4909C26.6909 24.7091 24 20.1545 24 15Z" fill="#FF5F00" fillOpacity="0.85"/>
+  </svg>
+);
 
 export default function Home() {
   const [key, setKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resp, setResp] = useState<ApiResp | null>(null);
-  
-  // 提示 Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -76,46 +64,24 @@ export default function Home() {
     setTimeout(() => setToastMsg(null), 2000);
   };
 
-  // 点击复制逻辑
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === "--") return;
-    // 如果是卡号，去掉空格再复制
     const textToCopy = label === "卡号" ? text.replace(/\s+/g, "") : text;
-    
     navigator.clipboard.writeText(textToCopy).then(() => {
-      showToast(`✓ 已复制 ${label}`);
+      showToast(`✓ 成功复制 ${label}`);
     }).catch(() => {
-      showToast("❌ 复制失败，请手动复制");
+      showToast("❌ 复制失败");
     });
   };
 
-  // 复制卡片所有信息
-  const handleCopyCardInfo = () => {
-    if (!resp?.card) return showToast("暂无卡片信息可复制");
-    const info = `卡号: ${resp.card.cardNumber}\nCVV: ${resp.card.cvv}\n有效期: ${resp.card.expiry}`;
-    handleCopy(info, "卡片完整信息");
-  };
-
-  // 复制完整地址
-  const handleCopyAddress = () => {
-    const { fullName, street, city, state, zip, country } = MOCK_ADDRESS;
-    const addressStr = `${fullName}\n${street}\n${city}, ${state} ${zip}\n${country}`;
-    handleCopy(addressStr, "完整账单地址");
-  };
-
-  // 卡号格式化 (4位一空)
   const displayCardNumber = useMemo(() => {
     const num = resp?.card?.cardNumber || "";
     return num.replace(/\s+/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").trim();
   }, [resp]);
 
-  // 接口请求
   const onRedeemAndQuery = async () => {
     const k = key.trim();
-    if (!k) {
-      showToast("请输入卡密");
-      return;
-    }
+    if (!k) return showToast("请输入有效的卡密 (UUID)");
 
     setLoading(true);
     setError(null);
@@ -130,14 +96,14 @@ export default function Home() {
 
       if (!json.ok) {
         showToast(json.error || "激活或查询失败");
-        setError(json.error || "请求失败");
-        setResp(null); // 查询失败保持/恢复空状态
+        setError(json.error || "请求失败，请检查卡密");
+        setResp(null);
       } else {
         setResp(json);
-        showToast("✓ 获取成功");
+        showToast("✓ 卡片数据获取成功");
       }
     } catch (e: any) {
-      showToast("网络异常");
+      showToast("网络连接异常");
       setError(e?.message || "网络请求异常");
       setResp(null);
     } finally {
@@ -145,193 +111,230 @@ export default function Home() {
     }
   };
 
-  // --- 重点：可点击复制的信息行组件 ---
-  const InfoRow = ({ label, value, valueClass = "text-slate-300", copyValue }: { label: string, value: string, valueClass?: string, copyValue?: string }) => (
-    <div 
-      onClick={() => handleCopy(copyValue || value, label)}
-      className="flex justify-between items-center py-3.5 px-4 border-b border-[#25283d] last:border-0 hover:bg-[#1a1d2f] cursor-pointer transition-colors group"
-      title={`点击复制 ${label}`}
-    >
-      <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{label}</span>
-      <span className={`text-sm font-medium transition-colors ${valueClass}`}>
-        {value}
-      </span>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-[#0b0e14] text-slate-300 font-sans p-4 md:p-6 lg:p-8 selection:bg-cyan-900/50">
+    <div className="min-h-screen bg-[#060a14] text-slate-300 font-sans selection:bg-cyan-900/50 relative overflow-hidden">
       
-      {/* 复制成功 Toast */}
-      <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform ${toastMsg ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0 pointer-events-none'}`}>
-        <div className="bg-[#1e2336] text-white px-6 py-2.5 rounded shadow-xl font-medium text-sm border border-slate-700/50">
+      {/* 高级感科技网格背景 */}
+      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none" 
+           style={{ backgroundImage: 'linear-gradient(to right, #1e293b 1px, transparent 1px), linear-gradient(to bottom, #1e293b 1px, transparent 1px)', backgroundSize: '40px 40px' }} 
+      />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+      {/* Toast */}
+      <div className={`fixed top-8 right-8 z-50 transition-all duration-300 transform ${toastMsg ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0 pointer-events-none'}`}>
+        <div className="bg-[#0f172a]/90 backdrop-blur-md text-emerald-400 px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.2)] font-medium text-sm border border-emerald-500/30 flex items-center gap-2">
            {toastMsg}
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto h-full flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-4rem)]">
+      <div className="max-w-[1400px] mx-auto h-full p-4 md:p-6 lg:p-8 relative z-10">
         
-        {/* --- 左侧面板 (输入区) --- */}
-        <div className="w-full lg:w-[380px] flex-shrink-0 bg-[#16192b] rounded-xl border border-[#25283d] flex flex-col p-6 shadow-2xl">
-          {/* Logo & 标题 */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 relative rounded overflow-hidden flex-shrink-0">
-              <Image 
-                src="/logo.jpg" 
-                alt="智链科技" 
-                fill 
-                className="object-cover"
-              />
+        {/* 顶部 Header */}
+        <header className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 relative rounded-lg overflow-hidden flex-shrink-0 border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <Image src="/logo.jpg" alt="Logo" fill className="object-cover" />
             </div>
-            <h1 className="text-[17px] font-bold text-white tracking-wide">智链科技虚拟卡</h1>
+            <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 tracking-wide">
+              智链科技虚拟卡
+            </h1>
           </div>
-
-          {/* 输入框 */}
-          <div className="flex-1 flex flex-col mb-4">
-            <textarea
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="请输入卡密或卡号（每行一个，最多10个）..."
-              className="flex-1 w-full bg-[#0f111a] text-slate-300 border border-[#25283d] rounded-lg p-4 text-sm focus:outline-none focus:border-[#10b981]/50 transition-colors resize-none placeholder:text-slate-600"
-            ></textarea>
-            
-            {error && <div className="text-red-400 text-xs mt-3 text-center">{error}</div>}
-          </div>
-
-          {/* 底部操作区 */}
-          <div className="text-center mt-2">
-            <p className="text-[11px] text-slate-500 mb-4 tracking-wider">支持批量兑换，每行输入一个卡密，每个间隔5秒处理</p>
-            <button
-              onClick={onRedeemAndQuery}
-              disabled={loading}
-              className="w-full py-3.5 rounded-lg font-bold text-white bg-[#10b981] hover:bg-[#0da06f] active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-            >
-              {loading ? "处理中..." : "兑换 / 查询"}
-            </button>
-            <div className="text-[10px] text-slate-600 mt-5 uppercase tracking-widest font-semibold">
-              ZHILIancard • v1.0
+          <div className="flex items-center gap-4 text-sm">
+            <div className="hidden md:block text-right">
+              <p className="text-slate-400 text-xs">Welcome,</p>
+              <p className="text-white font-medium">User</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white font-bold border border-cyan-400/30 shadow-lg">
+              U
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* --- 右侧面板 (动态展示区) --- */}
-        <div className="flex-1 flex flex-col gap-6 overflow-hidden">
+        {/* 主体布局 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-8rem)]">
           
-          {/* 条件渲染：如果没有成功的数据，显示空状态；否则显示卡片信息 */}
-          {!resp?.card ? (
+          {/* 左侧面板 */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
             
-            // --- 未输入/未查询到数据的空状态 (对标图三) ---
-            <div className="flex-1 bg-[#16192b] rounded-xl border border-[#25283d] shadow-2xl flex flex-col items-center justify-center">
-               <CreditCardIcon />
-               <p className="text-slate-300 font-medium mb-2">输入卡密开始兑换</p>
-               <p className="text-slate-500 text-sm">兑换成功后卡片信息将显示在这里</p>
+            {/* 激活与查询模块 */}
+            <div className="bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <h2 className="text-lg text-white font-semibold mb-1">卡片激活与查询</h2>
+              <p className="text-xs text-slate-500 mb-5">Refined central key</p>
+              
+              <textarea
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="在此输入您的卡密 (UUID)..."
+                className="w-full bg-[#050b14]/80 text-cyan-50 border border-slate-700/50 rounded-xl p-4 text-sm focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all resize-none placeholder:text-slate-600 h-28 mb-4 shadow-inner"
+              />
+              
+              <button
+                onClick={onRedeemAndQuery}
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(6,182,212,0.3)] tracking-wider"
+              >
+                {loading ? "处理中..." : "立即激活 / 查询"}
+              </button>
+              
+              {error && <div className="text-red-400 text-xs mt-4 pl-1">{error}</div>}
             </div>
 
-          ) : (
-
-            // --- 查询成功后的数据展示状态 (对标图二) ---
-            <>
-              {/* 上半部分: 卡片信息 & 账单地址 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* 1. 卡片信息卡片 */}
-                <div className="bg-[#16192b] rounded-xl border border-[#25283d] shadow-2xl flex flex-col overflow-hidden">
-                  <div className="flex justify-between items-center p-5 border-b border-[#25283d]">
-                    <h2 className="text-white font-semibold text-[15px]">卡片信息</h2>
-                    <div className="flex gap-2">
-                      <button className="px-3 py-1.5 rounded text-xs border border-red-900/50 text-red-400 hover:bg-red-500/10 transition-colors">
-                        销毁卡片
-                      </button>
-                      <button 
-                        onClick={handleCopyCardInfo}
-                        className="px-3 py-1.5 rounded text-xs border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 transition-colors"
-                      >
-                        复制卡片信息
-                      </button>
-                    </div>
+            {/* 最近活动列表 (静态展示增强科技感) */}
+            <div className="flex-1 bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+              <h2 className="text-lg text-white font-semibold mb-5">最近活动列表</h2>
+              <div className="space-y-4">
+                {[1, 2, 3].map((_, i) => (
+                  <div key={i} className="flex justify-between items-center py-2 border-b border-slate-800/50 last:border-0 text-sm">
+                    <span className="text-slate-400 font-mono">2025/12/26 12:30:05</span>
+                    <span className="text-slate-300">Niko Zhang</span>
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-                  <div className="flex-1 bg-[#0f111a] p-2">
-                    <div className="bg-[#0f111a] rounded-lg border border-[#25283d] overflow-hidden">
-                      <InfoRow 
-                        label="卡号" 
-                        value={displayCardNumber || "--"} 
-                        copyValue={resp?.card?.cardNumber}
-                        valueClass="font-mono text-white text-[15px] tracking-widest group-hover:text-[#10b981]" 
-                      />
-                      <InfoRow 
-                        label="CVV" 
-                        value={resp?.card?.cvv || "--"} 
-                        valueClass="font-mono text-slate-200 group-hover:text-white" 
-                      />
-                      <InfoRow 
-                        label="有效期" 
-                        value={resp?.card?.expiry || "--"} 
-                        valueClass="font-mono text-slate-200 group-hover:text-white"
-                      />
-                      <InfoRow 
-                        label="剩余时间" 
-                        value="已过期" // 按照您的图二这里是写死的已过期，如果是动态可换成其他逻辑
-                        valueClass="text-red-400 group-hover:text-red-300" 
-                      />
-                      <InfoRow 
-                        label="余额" 
-                        value="$0" 
-                        valueClass="text-[#10b981] font-bold group-hover:text-[#34d399]" 
-                      />
-                      <InfoRow 
-                        label="兑换时间" 
-                        value={resp?.card?.redeemTime ? formatTime(resp.card.redeemTime) : (resp?.activatedAt ? formatTime(resp.activatedAt) : "--")} 
-                        valueClass="text-slate-300"
-                      />
-                    </div>
-                  </div>
+          {/* 右侧面板 (动态渲染区) */}
+          <div className="lg:col-span-8">
+            {!resp?.card ? (
+              // 空状态
+              <div className="h-full bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center min-h-[400px] shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                <div className="w-20 h-20 bg-blue-900/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+                  <svg className="w-10 h-10 text-cyan-500 opacity-80" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4ZM20 18H4V12H20V18ZM20 8H4V6H20V8Z" />
+                  </svg>
                 </div>
+                <h3 className="text-xl text-white font-medium mb-2 tracking-wide">等待输入卡密</h3>
+                <p className="text-slate-500 text-sm">激活成功后，您的专属虚拟卡信息将在此处生成</p>
+              </div>
+            ) : (
+              // 成功展示状态
+              <div className="h-full bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col">
+                <h2 className="text-lg text-white font-semibold mb-6">卡片详情与管理</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                  
+                  {/* 左列：虚拟卡体 + 状态 */}
+                  <div className="flex flex-col gap-6">
+                    {/* 实体卡片 UI */}
+                    <div className="w-full aspect-[1.586/1] bg-gradient-to-br from-cyan-900 via-blue-900 to-indigo-950 rounded-2xl p-6 relative overflow-hidden shadow-[0_10px_40px_rgba(6,182,212,0.2)] border border-white/10 group select-none hover:scale-[1.02] transition-transform duration-300">
+                      {/* 镭射光效 */}
+                      <div className="absolute top-0 right-0 w-[150%] h-[150%] bg-gradient-to-b from-white/10 to-transparent -rotate-45 translate-x-1/3 -translate-y-1/3 pointer-events-none" />
+                      
+                      <div className="flex justify-between items-start relative z-10">
+                        <span className="text-slate-300 text-sm tracking-widest font-medium drop-shadow-md">SmartChain Tech Virtual Card</span>
+                        <div className="w-12 h-9 bg-gradient-to-br from-yellow-200 to-yellow-500 rounded-md shadow-sm border border-yellow-400/50 opacity-90 overflow-hidden relative">
+                           <div className="absolute top-1/2 w-full h-[1px] bg-black/20"></div>
+                           <div className="absolute left-1/3 h-full w-[1px] bg-black/20"></div>
+                        </div>
+                      </div>
 
-                {/* 2. 账单地址卡片 */}
-                <div className="bg-[#16192b] rounded-xl border border-[#25283d] shadow-2xl flex flex-col overflow-hidden">
-                  <div className="flex justify-between items-center p-5 border-b border-[#25283d]">
-                    <h2 className="text-white font-semibold text-[15px]">账单地址</h2>
+                      <div className="mt-10 relative z-10">
+                        <div 
+                          className="font-mono text-2xl md:text-[1.7rem] text-white tracking-widest drop-shadow-lg cursor-pointer group/num inline-block"
+                          onClick={() => handleCopy(resp.card?.cardNumber, "卡号")}
+                          title="点击复制卡号"
+                        >
+                          {displayCardNumber}
+                          <CopyIcon />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-end mt-8 relative z-10">
+                        <div className="flex gap-6">
+                          <div className="cursor-pointer group/item" onClick={() => handleCopy(resp.card?.cvv, "CVV")} title="点击复制CVV">
+                            <p className="text-[10px] text-cyan-200 uppercase tracking-wider mb-1">CVV</p>
+                            <p className="font-mono text-lg text-white flex items-center">{resp.card?.cvv || "•••"} <CopyIcon /></p>
+                          </div>
+                          <div className="cursor-pointer group/item" onClick={() => handleCopy(resp.card?.expiry, "有效期")} title="点击复制有效期">
+                            <p className="text-[10px] text-cyan-200 uppercase tracking-wider mb-1">Expiry</p>
+                            <p className="font-mono text-lg text-white flex items-center">{resp.card?.expiry || "MM/YY"} <CopyIcon /></p>
+                          </div>
+                        </div>
+                        <MastercardLogo />
+                      </div>
+                    </div>
+
+                    {/* 激活状态面板 */}
+                    <div className="bg-[#050b14]/50 rounded-xl p-5 border border-slate-700/50">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-sm text-slate-400">激活状态</span>
+                        <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-slate-400 block mb-1">激活时间</span>
+                        <span className="font-mono text-lg text-slate-200">
+                          {resp.card?.redeemTime ? formatTime(resp.card.redeemTime) : formatTime(resp.activatedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右列：账单地址 */}
+                  <div className="bg-[#050b14]/50 rounded-xl border border-slate-700/50 p-5 flex flex-col relative">
+                    <h3 className="text-white font-medium mb-6 flex items-center gap-2">
+                      <span className="text-lg">🇺🇸</span> 美国账单地址
+                    </h3>
+
+                    <div className="space-y-5 flex-1">
+                      {/* Name */}
+                      <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.fullName, "姓名")}>
+                        <p className="text-xs text-slate-500 mb-1 flex items-center">
+                          <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                          姓名
+                        </p>
+                        <p className="text-slate-200 text-sm pl-4 font-medium transition-colors group-hover:text-cyan-400">
+                          {MOCK_ADDRESS.fullName} <CopyIcon />
+                        </p>
+                      </div>
+
+                      {/* Address */}
+                      <div className="group cursor-pointer" onClick={() => handleCopy(`${MOCK_ADDRESS.street}, ${MOCK_ADDRESS.city}, ${MOCK_ADDRESS.state} ${MOCK_ADDRESS.zip}`, "街道地址")}>
+                        <p className="text-xs text-slate-500 mb-1 flex items-center">
+                          <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          地址
+                        </p>
+                        <p className="text-slate-200 text-sm pl-4 leading-relaxed font-medium transition-colors group-hover:text-cyan-400">
+                          {MOCK_ADDRESS.street} <br/> {MOCK_ADDRESS.city}, {MOCK_ADDRESS.state} {MOCK_ADDRESS.zip} <CopyIcon />
+                        </p>
+                      </div>
+
+                      {/* Zip & Country */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.zip, "邮编")}>
+                          <p className="text-xs text-slate-500 mb-1">邮编</p>
+                          <p className="text-slate-200 text-sm pl-1 font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.zip} <CopyIcon /></p>
+                        </div>
+                        <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.country, "国家")}>
+                          <p className="text-xs text-slate-500 mb-1">国家</p>
+                          <p className="text-slate-200 text-sm pl-1 font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.country} <CopyIcon /></p>
+                        </div>
+                      </div>
+                    </div>
+
                     <button 
-                      onClick={handleCopyAddress}
-                      className="px-3 py-1.5 rounded text-xs border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                      onClick={() => handleCopy(`${MOCK_ADDRESS.fullName}\n${MOCK_ADDRESS.street}\n${MOCK_ADDRESS.city}, ${MOCK_ADDRESS.state} ${MOCK_ADDRESS.zip}\n${MOCK_ADDRESS.country}`, "完整地址")}
+                      className="mt-6 w-full py-2.5 rounded-lg border border-cyan-500/50 text-cyan-400 text-sm font-medium hover:bg-cyan-500/10 transition-colors"
                     >
-                      复制完整地址
+                      Copy Full Address
                     </button>
                   </div>
 
-                  <div className="flex-1 bg-[#0f111a] p-2">
-                    <div className="bg-[#0f111a] rounded-lg border border-[#25283d] overflow-hidden">
-                      <InfoRow label="全名" value={MOCK_ADDRESS.fullName} valueClass="text-white group-hover:text-[#10b981]" />
-                      <InfoRow label="街道" value={MOCK_ADDRESS.street} valueClass="text-slate-200 group-hover:text-white" />
-                      <InfoRow label="城市" value={MOCK_ADDRESS.city} valueClass="text-slate-200 group-hover:text-white" />
-                      <InfoRow label="州/省" value={MOCK_ADDRESS.state} valueClass="text-slate-200 group-hover:text-white" />
-                      <InfoRow label="邮编" value={MOCK_ADDRESS.zip} valueClass="text-slate-200 group-hover:text-white" />
-                      <InfoRow label="国家" value={MOCK_ADDRESS.country} valueClass="text-slate-200 group-hover:text-white" />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* 下半部分: 消费记录 */}
-              <div className="flex-1 bg-[#16192b] rounded-xl border border-[#25283d] shadow-2xl flex flex-col min-h-[250px] overflow-hidden">
-                <div className="p-5 border-b border-[#25283d]">
-                  <h2 className="text-white font-semibold text-[15px]">消费记录</h2>
-                </div>
-                
-                {/* 数据展示区或空状态 */}
-                <div className="flex-1 bg-[#0f111a] p-2">
-                  <div className="h-full bg-[#0f111a] rounded-lg border border-[#25283d] flex flex-col items-center justify-center">
-                    <ClipboardIcon />
-                    <p className="text-slate-500 text-sm">暂无消费记录</p>
-                  </div>
                 </div>
               </div>
-            </>
-          )}
-
+            )}
+          </div>
         </div>
+
+        {/* 底部版权 */}
+        <footer className="mt-8 text-center text-slate-600 text-xs tracking-widest uppercase">
+          <p>System Powered by SmartChain Tech</p>
+          <p className="mt-1 opacity-70 text-[10px]">智链科技系统支持</p>
+        </footer>
+
       </div>
     </div>
   );
