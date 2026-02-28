@@ -19,11 +19,11 @@ type ApiResp = {
 
 // --- 2. 模拟账单地址数据 ---
 const MOCK_ADDRESS = {
-  fullName: "Niko Zhang",
-  street: "123 Tech Lane",
-  city: "San Francisco",
+  fullName: "Jennifer Nguyen",
+  street: "201 Whitehall Court",
+  city: "American Canyon",
   state: "CA",
-  zip: "94107",
+  zip: "94503",
   country: "US",
 };
 
@@ -79,9 +79,13 @@ export default function Home() {
     return num.replace(/\s+/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").trim();
   }, [resp]);
 
+  // 接口请求 (已完全恢复为您源码中的传参方式)
   const onRedeemAndQuery = async () => {
     const k = key.trim();
-    if (!k) return showToast("请输入有效的卡密 (UUID)");
+    if (!k) {
+      setError("请输入有效的卡密或卡号");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -90,13 +94,13 @@ export default function Home() {
       const res = await fetch("/api/redeem-query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key_id: k.split('\n')[0] }), 
+        body: JSON.stringify({ key_id: k }), // 还原为您源码中的逻辑
       });
       const json = (await res.json()) as ApiResp;
 
       if (!json.ok) {
-        showToast(json.error || "激活或查询失败");
-        setError(json.error || "请求失败，请检查卡密");
+        showToast("激活或查询失败");
+        setError(json.error || "请求失败，请检查卡密状态");
         setResp(null);
       } else {
         setResp(json);
@@ -104,7 +108,7 @@ export default function Home() {
       }
     } catch (e: any) {
       showToast("网络连接异常");
-      setError(e?.message || "网络请求异常");
+      setError(e?.message || "网络请求异常，请稍后再试");
       setResp(null);
     } finally {
       setLoading(false);
@@ -121,17 +125,17 @@ export default function Home() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Toast */}
+      {/* Toast 提示框 */}
       <div className={`fixed top-8 right-8 z-50 transition-all duration-300 transform ${toastMsg ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0 pointer-events-none'}`}>
         <div className="bg-[#0f172a]/90 backdrop-blur-md text-emerald-400 px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.2)] font-medium text-sm border border-emerald-500/30 flex items-center gap-2">
            {toastMsg}
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto h-full p-4 md:p-6 lg:p-8 relative z-10">
+      <div className="max-w-[1400px] mx-auto h-full p-4 md:p-6 lg:p-8 relative z-10 flex flex-col lg:h-screen">
         
         {/* 顶部 Header */}
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex justify-between items-center mb-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 relative rounded-lg overflow-hidden flex-shrink-0 border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
               <Image src="/logo.jpg" alt="Logo" fill className="object-cover" />
@@ -145,75 +149,67 @@ export default function Home() {
               <p className="text-slate-400 text-xs">Welcome,</p>
               <p className="text-white font-medium">User</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white font-bold border border-cyan-400/30 shadow-lg">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white font-bold border border-cyan-400/30 shadow-lg cursor-pointer hover:opacity-90">
               U
             </div>
           </div>
         </header>
 
-        {/* 主体布局 */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-8rem)]">
+        {/* 主体布局 (左侧输入, 右侧展示) */}
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 pb-4">
           
-          {/* 左侧面板 */}
-          <div className="lg:col-span-4 flex flex-col gap-6">
-            
-            {/* 激活与查询模块 */}
-            <div className="bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <h2 className="text-lg text-white font-semibold mb-1">卡片激活与查询</h2>
-              <p className="text-xs text-slate-500 mb-5">Refined central key</p>
+          {/* --- 左侧面板：纯粹的激活与查询输入区 --- */}
+          <div className="w-full lg:w-[380px] flex-shrink-0 flex flex-col h-[500px] lg:h-full">
+            <div className="flex-1 bg-[#0f172a]/70 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col relative group">
+              {/* 修复点：添加 pointer-events-none 避免遮挡鼠标点击和输入 */}
+              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-2xl" />
+              
+              <h2 className="text-lg text-white font-semibold mb-4">卡片激活与查询</h2>
               
               <textarea
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder="在此输入您的卡密 (UUID)..."
-                className="w-full bg-[#050b14]/80 text-cyan-50 border border-slate-700/50 rounded-xl p-4 text-sm focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all resize-none placeholder:text-slate-600 h-28 mb-4 shadow-inner"
+                placeholder="在此输入您的卡密或卡号 (每行一个，最多10个)..."
+                className="flex-1 w-full bg-[#050b14]/80 text-cyan-50 border border-slate-700/50 rounded-xl p-4 text-sm focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all resize-none placeholder:text-slate-600 mb-6 shadow-inner z-10"
               />
               
-              <button
-                onClick={onRedeemAndQuery}
-                disabled={loading}
-                className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(6,182,212,0.3)] tracking-wider"
-              >
-                {loading ? "处理中..." : "立即激活 / 查询"}
-              </button>
+              <div className="flex flex-col gap-3 z-10">
+                <p className="text-xs text-slate-500 text-center tracking-wide">支持批量兑换，每行输入一个卡密，每个间隔5秒处理</p>
+                <button
+                  onClick={onRedeemAndQuery}
+                  disabled={loading}
+                  className="w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(6,182,212,0.3)] tracking-widest"
+                >
+                  {loading ? "处理中..." : "兑换 / 查询"}
+                </button>
+              </div>
               
-              {error && <div className="text-red-400 text-xs mt-4 pl-1">{error}</div>}
-            </div>
-
-            {/* 最近活动列表 (静态展示增强科技感) */}
-            <div className="flex-1 bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
-              <h2 className="text-lg text-white font-semibold mb-5">最近活动列表</h2>
-              <div className="space-y-4">
-                {[1, 2, 3].map((_, i) => (
-                  <div key={i} className="flex justify-between items-center py-2 border-b border-slate-800/50 last:border-0 text-sm">
-                    <span className="text-slate-400 font-mono">2025/12/26 12:30:05</span>
-                    <span className="text-slate-300">Niko Zhang</span>
-                  </div>
-                ))}
+              {error && <div className="text-red-400 text-xs mt-4 text-center z-10">{error}</div>}
+              
+              <div className="text-center mt-6 z-10">
+                <span className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">ZHILIancard • v1.0</span>
               </div>
             </div>
           </div>
 
-          {/* 右侧面板 (动态渲染区) */}
-          <div className="lg:col-span-8">
+          {/* --- 右侧面板 (动态渲染区) --- */}
+          <div className="flex-1 flex flex-col min-w-0 h-auto lg:h-full">
             {!resp?.card ? (
               // 空状态
-              <div className="h-full bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center min-h-[400px] shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+              <div className="h-full min-h-[500px] bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)]">
                 <div className="w-20 h-20 bg-blue-900/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
                   <svg className="w-10 h-10 text-cyan-500 opacity-80" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4ZM20 18H4V12H20V18ZM20 8H4V6H20V8Z" />
                   </svg>
                 </div>
                 <h3 className="text-xl text-white font-medium mb-2 tracking-wide">等待输入卡密</h3>
-                <p className="text-slate-500 text-sm">激活成功后，您的专属虚拟卡信息将在此处生成</p>
+                <p className="text-slate-500 text-sm">激活或查询成功后，卡片信息将显示在这里</p>
               </div>
             ) : (
-              // 成功展示状态
-              <div className="h-full bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col">
-                <h2 className="text-lg text-white font-semibold mb-6">卡片详情与管理</h2>
+              // 成功展示状态 (滚动区域)
+              <div className="h-full bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-cyan-500/20 p-6 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col overflow-y-auto custom-scrollbar">
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-1">
                   
                   {/* 左列：虚拟卡体 + 状态 */}
                   <div className="flex flex-col gap-6">
@@ -223,16 +219,16 @@ export default function Home() {
                       <div className="absolute top-0 right-0 w-[150%] h-[150%] bg-gradient-to-b from-white/10 to-transparent -rotate-45 translate-x-1/3 -translate-y-1/3 pointer-events-none" />
                       
                       <div className="flex justify-between items-start relative z-10">
-                        <span className="text-slate-300 text-sm tracking-widest font-medium drop-shadow-md">SmartChain Tech Virtual Card</span>
+                        <span className="text-slate-300 text-sm tracking-widest font-medium drop-shadow-md">SmartChain Tech Card</span>
                         <div className="w-12 h-9 bg-gradient-to-br from-yellow-200 to-yellow-500 rounded-md shadow-sm border border-yellow-400/50 opacity-90 overflow-hidden relative">
                            <div className="absolute top-1/2 w-full h-[1px] bg-black/20"></div>
                            <div className="absolute left-1/3 h-full w-[1px] bg-black/20"></div>
                         </div>
                       </div>
 
-                      <div className="mt-10 relative z-10">
+                      <div className="mt-8 md:mt-10 relative z-10">
                         <div 
-                          className="font-mono text-2xl md:text-[1.7rem] text-white tracking-widest drop-shadow-lg cursor-pointer group/num inline-block"
+                          className="font-mono text-2xl md:text-3xl text-white tracking-widest drop-shadow-lg cursor-pointer group/num inline-block"
                           onClick={() => handleCopy(resp.card?.cardNumber, "卡号")}
                           title="点击复制卡号"
                         >
@@ -241,7 +237,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-end mt-8 relative z-10">
+                      <div className="flex justify-between items-end mt-8 md:mt-10 relative z-10">
                         <div className="flex gap-6">
                           <div className="cursor-pointer group/item" onClick={() => handleCopy(resp.card?.cvv, "CVV")} title="点击复制CVV">
                             <p className="text-[10px] text-cyan-200 uppercase tracking-wider mb-1">CVV</p>
@@ -259,14 +255,18 @@ export default function Home() {
                     {/* 激活状态面板 */}
                     <div className="bg-[#050b14]/50 rounded-xl p-5 border border-slate-700/50">
                       <div className="flex justify-between items-center mb-4">
+                        <span className="text-sm text-slate-400">卡片余额</span>
+                        <span className="text-lg font-bold text-emerald-400">$0.00</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-4">
                         <span className="text-sm text-slate-400">激活状态</span>
                         <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
                         </span>
                       </div>
-                      <div>
-                        <span className="text-sm text-slate-400 block mb-1">激活时间</span>
-                        <span className="font-mono text-lg text-slate-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-slate-400">兑换时间</span>
+                        <span className="font-mono text-sm text-slate-200">
                           {resp.card?.redeemTime ? formatTime(resp.card.redeemTime) : formatTime(resp.activatedAt)}
                         </span>
                       </div>
@@ -274,68 +274,90 @@ export default function Home() {
                   </div>
 
                   {/* 右列：账单地址 */}
-                  <div className="bg-[#050b14]/50 rounded-xl border border-slate-700/50 p-5 flex flex-col relative">
-                    <h3 className="text-white font-medium mb-6 flex items-center gap-2">
-                      <span className="text-lg">🇺🇸</span> 美国账单地址
-                    </h3>
+                  <div className="bg-[#050b14]/50 rounded-xl border border-slate-700/50 p-5 flex flex-col h-full">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-white font-medium flex items-center gap-2">
+                        <span className="text-lg">🇺🇸</span> 账单地址
+                      </h3>
+                      <button 
+                        onClick={() => handleCopy(`${MOCK_ADDRESS.fullName}\n${MOCK_ADDRESS.street}\n${MOCK_ADDRESS.city}, ${MOCK_ADDRESS.state} ${MOCK_ADDRESS.zip}\n${MOCK_ADDRESS.country}`, "完整地址")}
+                        className="px-3 py-1.5 rounded text-xs border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                      >
+                        复制完整地址
+                      </button>
+                    </div>
 
-                    <div className="space-y-5 flex-1">
+                    <div className="space-y-4 flex-1">
                       {/* Name */}
-                      <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.fullName, "姓名")}>
-                        <p className="text-xs text-slate-500 mb-1 flex items-center">
-                          <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                          姓名
-                        </p>
-                        <p className="text-slate-200 text-sm pl-4 font-medium transition-colors group-hover:text-cyan-400">
+                      <div className="group cursor-pointer border-b border-slate-800 pb-3" onClick={() => handleCopy(MOCK_ADDRESS.fullName, "姓名")}>
+                        <p className="text-xs text-slate-500 mb-1">全名</p>
+                        <p className="text-slate-200 text-sm font-medium transition-colors group-hover:text-cyan-400">
                           {MOCK_ADDRESS.fullName} <CopyIcon />
                         </p>
                       </div>
 
-                      {/* Address */}
-                      <div className="group cursor-pointer" onClick={() => handleCopy(`${MOCK_ADDRESS.street}, ${MOCK_ADDRESS.city}, ${MOCK_ADDRESS.state} ${MOCK_ADDRESS.zip}`, "街道地址")}>
-                        <p className="text-xs text-slate-500 mb-1 flex items-center">
-                          <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                          地址
-                        </p>
-                        <p className="text-slate-200 text-sm pl-4 leading-relaxed font-medium transition-colors group-hover:text-cyan-400">
-                          {MOCK_ADDRESS.street} <br/> {MOCK_ADDRESS.city}, {MOCK_ADDRESS.state} {MOCK_ADDRESS.zip} <CopyIcon />
+                      {/* Street */}
+                      <div className="group cursor-pointer border-b border-slate-800 pb-3" onClick={() => handleCopy(MOCK_ADDRESS.street, "街道")}>
+                        <p className="text-xs text-slate-500 mb-1">街道</p>
+                        <p className="text-slate-200 text-sm font-medium transition-colors group-hover:text-cyan-400">
+                          {MOCK_ADDRESS.street} <CopyIcon />
                         </p>
                       </div>
 
-                      {/* Zip & Country */}
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* City */}
+                      <div className="group cursor-pointer border-b border-slate-800 pb-3" onClick={() => handleCopy(MOCK_ADDRESS.city, "城市")}>
+                        <p className="text-xs text-slate-500 mb-1">城市</p>
+                        <p className="text-slate-200 text-sm font-medium transition-colors group-hover:text-cyan-400">
+                          {MOCK_ADDRESS.city} <CopyIcon />
+                        </p>
+                      </div>
+
+                      {/* State & Zip */}
+                      <div className="grid grid-cols-2 gap-4 border-b border-slate-800 pb-3">
+                        <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.state, "州/省")}>
+                          <p className="text-xs text-slate-500 mb-1">州/省</p>
+                          <p className="text-slate-200 text-sm font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.state} <CopyIcon /></p>
+                        </div>
                         <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.zip, "邮编")}>
                           <p className="text-xs text-slate-500 mb-1">邮编</p>
-                          <p className="text-slate-200 text-sm pl-1 font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.zip} <CopyIcon /></p>
-                        </div>
-                        <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.country, "国家")}>
-                          <p className="text-xs text-slate-500 mb-1">国家</p>
-                          <p className="text-slate-200 text-sm pl-1 font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.country} <CopyIcon /></p>
+                          <p className="text-slate-200 text-sm font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.zip} <CopyIcon /></p>
                         </div>
                       </div>
-                    </div>
 
-                    <button 
-                      onClick={() => handleCopy(`${MOCK_ADDRESS.fullName}\n${MOCK_ADDRESS.street}\n${MOCK_ADDRESS.city}, ${MOCK_ADDRESS.state} ${MOCK_ADDRESS.zip}\n${MOCK_ADDRESS.country}`, "完整地址")}
-                      className="mt-6 w-full py-2.5 rounded-lg border border-cyan-500/50 text-cyan-400 text-sm font-medium hover:bg-cyan-500/10 transition-colors"
-                    >
-                      Copy Full Address
-                    </button>
+                      {/* Country */}
+                      <div className="group cursor-pointer" onClick={() => handleCopy(MOCK_ADDRESS.country, "国家")}>
+                        <p className="text-xs text-slate-500 mb-1">国家</p>
+                        <p className="text-slate-200 text-sm font-medium group-hover:text-cyan-400">{MOCK_ADDRESS.country} <CopyIcon /></p>
+                      </div>
+                    </div>
                   </div>
 
                 </div>
+
+                {/* 消费记录模块（放回底部） */}
+                <div className="mt-6 bg-[#050b14]/50 rounded-xl border border-slate-700/50 p-5 min-h-[150px] flex flex-col">
+                  <h3 className="text-white text-sm font-medium mb-4">消费记录</h3>
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+                    <svg className="w-8 h-8 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span className="text-xs">暂无消费记录</span>
+                  </div>
+                </div>
+
               </div>
             )}
           </div>
         </div>
-
-        {/* 底部版权 */}
-        <footer className="mt-8 text-center text-slate-600 text-xs tracking-widest uppercase">
-          <p>System Powered by SmartChain Tech</p>
-          <p className="mt-1 opacity-70 text-[10px]">智链科技系统支持</p>
-        </footer>
-
       </div>
+      
+      {/* 隐藏滚动条的 CSS，放在任意全局 CSS 或此处 */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #334155; }
+      `}} />
     </div>
   );
 }
