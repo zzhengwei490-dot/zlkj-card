@@ -59,6 +59,58 @@ const MastercardLogo = () => (
   </svg>
 );
 
+// --- 独立倒计时组件 (每秒更新，不影响其他组件性能) ---
+function CountdownTimer({ startTime }: { startTime?: string }) {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!startTime) {
+      setTimeLeft(null);
+      return;
+    }
+    
+    const startTimestamp = new Date(startTime).getTime();
+    if (isNaN(startTimestamp)) {
+      setTimeLeft(null);
+      return;
+    }
+    
+    // 兑换时间 + 60分钟
+    const endTimestamp = startTimestamp + 60 * 60 * 1000;
+
+    const calculateRemaining = () => {
+      const diff = endTimestamp - Date.now();
+      return diff > 0 ? diff : 0;
+    };
+
+    // 初始设置
+    setTimeLeft(calculateRemaining());
+
+    // 每秒递减
+    const timer = setInterval(() => {
+      const remaining = calculateRemaining();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer); // 归零后停止定时器
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [startTime]);
+
+  if (timeLeft === null) return <span className="text-slate-200">--</span>;
+  if (timeLeft <= 0) return <span className="text-red-400 font-medium">已过期</span>;
+
+  const m = Math.floor(timeLeft / 60000);
+  const s = Math.floor((timeLeft % 60000) / 1000);
+
+  return (
+    <span className="font-mono text-[#8292ff] font-medium tracking-wider text-sm sm:text-base">
+      {m}分{s.toString().padStart(2, "0")}秒
+    </span>
+  );
+}
+
 export default function Home() {
   const [key, setKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -119,7 +171,7 @@ export default function Home() {
         setResp(null);
       } else {
         setResp(json);
-        // --- 重点：每次查询成功后，重新随机生成一个姓名 ---
+        // 查询成功后，重新随机生成一个姓名
         setFullName(RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)]);
         showToast("✓ 卡片数据获取成功");
       }
@@ -229,7 +281,7 @@ export default function Home() {
                   
                   {/* 左列：虚拟卡体 + 状态 */}
                   <div className="flex flex-col gap-4 sm:gap-6">
-                    {/* --- 修复点：修改了卡片容器高度和卡号文字大小逻辑 --- */}
+                    {/* 实体卡片 UI */}
                     <div className="w-full flex flex-col justify-between aspect-auto sm:aspect-[1.586/1] min-h-[220px] bg-gradient-to-br from-cyan-900 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 relative overflow-hidden shadow-[0_10px_40px_rgba(6,182,212,0.2)] border border-white/10 group select-none hover:scale-[1.02] transition-transform duration-300">
                       {/* 镭射光效 */}
                       <div className="absolute top-0 right-0 w-[150%] h-[150%] bg-gradient-to-b from-white/10 to-transparent -rotate-45 translate-x-1/3 -translate-y-1/3 pointer-events-none" />
@@ -244,7 +296,6 @@ export default function Home() {
 
                       <div className="mt-6 mb-4 sm:my-0 relative z-10">
                         <div 
-                          // 强制不换行 (whitespace-nowrap)，并在小屏上缩小字号
                           className="font-mono text-[1.15rem] sm:text-2xl md:text-3xl text-white tracking-widest drop-shadow-lg cursor-pointer group/num inline-block whitespace-nowrap"
                           onClick={() => handleCopy(resp.card?.cardNumber, "卡号")}
                           title="点击复制卡号"
@@ -283,11 +334,16 @@ export default function Home() {
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-center mb-3 sm:mb-4">
                         <span className="text-xs sm:text-sm text-slate-400">兑换时间</span>
                         <span className="font-mono text-xs sm:text-sm text-slate-200">
                           {resp.card?.redeemTime ? formatTime(resp.card.redeemTime) : formatTime(resp.activatedAt)}
                         </span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-slate-700/50 pt-3 sm:pt-4">
+                        <span className="text-xs sm:text-sm text-slate-400">剩余时间</span>
+                        {/* 动态倒计时接入 */}
+                        <CountdownTimer startTime={resp.card?.redeemTime || resp.activatedAt} />
                       </div>
                     </div>
                   </div>
