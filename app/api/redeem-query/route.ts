@@ -301,18 +301,29 @@ export async function POST(request: Request) {
     }
 
     if (raw) {
+      // 有效期：兼容多种字段名和格式
+      // API 可能返回 expiryDate:"12/25" / expiry:"12/25" / expiryMonth+expiryYear
+      const expiry =
+        raw.expiryDate ??
+        raw.expiry ??
+        (raw.expiryMonth && raw.expiryYear
+          ? `${String(raw.expiryMonth).padStart(2, "0")}/${raw.expiryYear}`
+          : undefined);
+
       card = {
         cardId:       raw.cardId,
         cardNumber:   raw.cardNumber   ? String(raw.cardNumber)   : undefined,
         cvv:          raw.cvv          ? String(raw.cvv)          : undefined,
-        expiry:       raw.expiryDate   ?? undefined,
+        expiry,
         status:       raw.status,
         balance:      raw.balance,
         createdAt:    raw.createdAt,
-        validMinutes: undefined,
+        // 固定 60 分钟倒计时，从卡片首次创建时间（createdAt）开始计算
+        validMinutes: 60,
         redeemCode:   keyId,
       };
-      ok          = true;
+      ok = true;
+      // activatedAt 锁定为卡片首次创建时间，而非当前查询时间
       activatedAt = raw.createdAt ?? startedAt;
     }
 
