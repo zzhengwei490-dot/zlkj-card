@@ -6,25 +6,28 @@ export const dynamic = "force-dynamic";
 const ACT_REDEEM_URL = "https://actcard.xyz/api/keys/redeem";
 const ACT_QUERY_URL  = "https://actcard.xyz/api/keys/query";
 
-// 🟢 新增接口：EFun Card
-const EFUN_BASE_URL     = "https://card.efuncard.com/api/external";
-const EFUN_REDEEM_URL   = `${EFUN_BASE_URL}/redeem`;
-const EFUN_CANCEL_URL   = `${EFUN_BASE_URL}/cards/cancel`;
-const EFUN_3DS_URL      = `${EFUN_BASE_URL}/3ds/verify`;
-// GET 接口需要拼接 code：
+// 🟢 EFun Card 接口
+const EFUN_BASE_URL   = "https://card.efuncard.com/api/external";
+const EFUN_REDEEM_URL = `${EFUN_BASE_URL}/redeem`;
+const EFUN_CANCEL_URL = `${EFUN_BASE_URL}/cards/cancel`;
+const EFUN_3DS_URL    = `${EFUN_BASE_URL}/3ds/verify`;
+// GET 接口：
 //   查询卡片: GET ${EFUN_BASE_URL}/cards/query/:code
 //   账单查询: GET ${EFUN_BASE_URL}/billing/:code
 
-// EFun Card API Key（Bearer Token）
 const EFUN_API_KEY = "b352d13f20462ed46cff0aa417065496bd811eb8396b2e2fee11aeacb796fc00";
 
 // ─────────────────────────────────────────────────────
-// 工具函数：POST JSON
+// 工具函数
 // ─────────────────────────────────────────────────────
-async function postJson(url: string, payload: any, headers: Record<string, string> = {}, timeoutMs = 15000) {
+async function postJson(
+  url: string,
+  payload: any,
+  headers: Record<string, string> = {},
+  timeoutMs = 15000
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -38,24 +41,22 @@ async function postJson(url: string, payload: any, headers: Record<string, strin
       cache: "no-store",
       signal: controller.signal,
     });
-
     const text = await res.text();
     let data: any = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-
     return { ok: res.ok, status: res.status, data };
   } finally {
     clearTimeout(timer);
   }
 }
 
-// ─────────────────────────────────────────────────────
-// 工具函数：GET JSON（用于 EFun 查询接口）
-// ─────────────────────────────────────────────────────
-async function getJson(url: string, headers: Record<string, string> = {}, timeoutMs = 15000) {
+async function getJson(
+  url: string,
+  headers: Record<string, string> = {},
+  timeoutMs = 15000
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const res = await fetch(url, {
       method: "GET",
@@ -68,21 +69,25 @@ async function getJson(url: string, headers: Record<string, string> = {}, timeou
       cache: "no-store",
       signal: controller.signal,
     });
-
     const text = await res.text();
     let data: any = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-
     return { ok: res.ok, status: res.status, data };
   } finally {
     clearTimeout(timer);
   }
 }
 
-// EFun 请求头（携带 Bearer Token）
 const efunHeaders = () => ({
   Authorization: `Bearer ${EFUN_API_KEY}`,
 });
+
+// ─────────────────────────────────────────────────────
+// 判断是否为 EFun 卡（UK- 前缀）
+// ─────────────────────────────────────────────────────
+function isEFunKey(key: string) {
+  return key.toUpperCase().startsWith("UK-");
+}
 
 // ─────────────────────────────────────────────────────
 // 主处理函数
@@ -97,24 +102,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "请求体不是合法 JSON" }, { status: 400 });
   }
 
+  // 通用获取 code 的辅助
+  const extractCode = () =>
+    body.code ?? body.key_id ?? body.key ?? body.cardKey ?? body.token;
+
   // ─────────────────────────────────────────────────────
-  // 🔵 action = "3ds"：EFun Card 3DS 验证码查询
+  // 🔵 action = "3ds"：3DS 验证码查询（仅 EFun 卡支持）
   // ─────────────────────────────────────────────────────
   if (body.action === "3ds") {
-    const code = body.code ?? body.key_id ?? body.key ?? body.cardKey ?? body.token;
-
+    const code = extractCode();
     if (!code || typeof code !== "string") {
-      return NextResponse.json({ ok: false, error: "缺少 code（CDK 激活码）字段" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "缺少 code 字段" }, { status: 400 });
     }
-
     const minutes = typeof body.minutes === "number" ? body.minutes : 30;
 
-    const res = await postJson(
-      EFUN_3DS_URL,
-      { code, minutes },
-      efunHeaders()
-    ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
-
+    const res = await postJson(EFUN_3DS_URL, { code, minutes }, efunHeaders()).catch((e) => ({
+      ok: false, status: 500, data: { error: String(e) },
+    }));
     const d = res.data ?? {};
 
     if (d.success === true && d.data) {
@@ -126,7 +130,6 @@ export async function POST(request: Request) {
         meta: { httpStatus: res.status },
       });
     }
-
     return NextResponse.json({
       ok: false,
       error: d.message ?? d.error ?? "3DS 验证码查询失败",
@@ -135,38 +138,35 @@ export async function POST(request: Request) {
   }
 
   // ─────────────────────────────────────────────────────
-  // 🔵 action = "query"：EFun Card 查询卡片信息
+  // 🔵 action = "query"：查询卡片信息（EFun 卡）
   // ─────────────────────────────────────────────────────
   if (body.action === "query") {
-    const code = body.code ?? body.key_id ?? body.key ?? body.cardKey ?? body.token;
-
+    const code = extractCode();
     if (!code || typeof code !== "string") {
-      return NextResponse.json({ ok: false, error: "缺少 code（CDK 激活码）字段" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "缺少 code 字段" }, { status: 400 });
     }
 
     const res = await getJson(
       `${EFUN_BASE_URL}/cards/query/${encodeURIComponent(code)}`,
       efunHeaders()
     ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
-
     const d = res.data ?? {};
 
     if (d.success === true && d.data) {
       return NextResponse.json({
         ok: true,
         card: {
-          cardId:      d.data.cardId,
-          cardNumber:  d.data.cardNumber,
-          expiry:      d.data.expiryDate,
-          cvv:         d.data.cvv,
-          status:      d.data.status,
-          balance:     d.data.balance,
-          createdAt:   d.data.createdAt,
+          cardId:     d.data.cardId,
+          cardNumber: d.data.cardNumber,
+          expiry:     d.data.expiryDate,
+          cvv:        d.data.cvv,
+          status:     d.data.status,
+          balance:    d.data.balance,
+          createdAt:  d.data.createdAt,
         },
         meta: { httpStatus: res.status },
       });
     }
-
     return NextResponse.json({
       ok: false,
       error: d.message ?? d.error ?? "卡片查询失败",
@@ -175,20 +175,18 @@ export async function POST(request: Request) {
   }
 
   // ─────────────────────────────────────────────────────
-  // 🔵 action = "billing"：EFun Card 账单查询
+  // 🔵 action = "billing"：账单查询
   // ─────────────────────────────────────────────────────
   if (body.action === "billing") {
-    const code = body.code ?? body.key_id ?? body.key ?? body.cardKey ?? body.token;
-
+    const code = extractCode();
     if (!code || typeof code !== "string") {
-      return NextResponse.json({ ok: false, error: "缺少 code（CDK 激活码）字段" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "缺少 code 字段" }, { status: 400 });
     }
 
     const res = await getJson(
       `${EFUN_BASE_URL}/billing/${encodeURIComponent(code)}`,
       efunHeaders()
     ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
-
     const d = res.data ?? {};
 
     if (d.success === true && d.data) {
@@ -204,7 +202,6 @@ export async function POST(request: Request) {
         meta: { httpStatus: res.status },
       });
     }
-
     return NextResponse.json({
       ok: false,
       error: d.message ?? d.error ?? "账单查询失败",
@@ -213,21 +210,17 @@ export async function POST(request: Request) {
   }
 
   // ─────────────────────────────────────────────────────
-  // 🔵 action = "cancel"：EFun Card 销卡
+  // 🔵 action = "cancel"：销卡
   // ─────────────────────────────────────────────────────
   if (body.action === "cancel") {
-    const code = body.code ?? body.key_id ?? body.key ?? body.cardKey ?? body.token;
-
+    const code = extractCode();
     if (!code || typeof code !== "string") {
-      return NextResponse.json({ ok: false, error: "缺少 code（CDK 激活码）字段" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "缺少 code 字段" }, { status: 400 });
     }
 
-    const res = await postJson(
-      EFUN_CANCEL_URL,
-      { code },
-      efunHeaders()
-    ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
-
+    const res = await postJson(EFUN_CANCEL_URL, { code }, efunHeaders()).catch((e) => ({
+      ok: false, status: 500, data: { error: String(e) },
+    }));
     const d = res.data ?? {};
 
     if (d.success === true) {
@@ -243,7 +236,6 @@ export async function POST(request: Request) {
         meta: { httpStatus: res.status },
       });
     }
-
     return NextResponse.json({
       ok: false,
       error: d.message ?? d.error ?? "销卡失败",
@@ -252,21 +244,14 @@ export async function POST(request: Request) {
   }
 
   // ─────────────────────────────────────────────────────
-  // 默认路由：开卡激活（ActCard 或 EFun Card）
+  // 默认路由：开卡激活
+  // UK- 前缀 → EFun Card    其余 → ActCard
   // ─────────────────────────────────────────────────────
-  const keyId =
-    body.key_id ??
-    body.key    ??
-    body.code   ??
-    body.cardKey ??
-    body.token;
+  const keyId = extractCode();
 
   if (!keyId || typeof keyId !== "string") {
     return NextResponse.json({ ok: false, error: "缺少 key_id（卡密）字段" }, { status: 400 });
   }
-
-  // 路由判断：CDK- 前缀走 EFun Card，其余走 ActCard
-  const isEFun = keyId.toUpperCase().startsWith("CDK-");
 
   let card: any     = undefined;
   let ok            = false;
@@ -274,11 +259,10 @@ export async function POST(request: Request) {
   let activatedAt   = startedAt;
   let meta: any     = {};
 
-  if (isEFun) {
+  if (isEFunKey(keyId)) {
     // ===========================
-    // 🟢 EFun Card 开卡逻辑
+    // 🟢 EFun Card 开卡逻辑（UK- 前缀）
     // ===========================
-
     const efunRes = await postJson(
       EFUN_REDEEM_URL,
       { code: keyId },
@@ -293,34 +277,30 @@ export async function POST(request: Request) {
       const raw = d.data;
       card = {
         cardId:      raw.cardId,
-        cardNumber:  raw.cardNumber ? String(raw.cardNumber) : undefined,
-        cvv:         raw.cvv        ? String(raw.cvv)        : undefined,
-        // EFun 返回格式为 "MM/YY"，直接透传
-        expiry:      raw.expiryDate ?? undefined,
+        cardNumber:  raw.cardNumber  ? String(raw.cardNumber)  : undefined,
+        cvv:         raw.cvv         ? String(raw.cvv)         : undefined,
+        expiry:      raw.expiryDate  ?? undefined,
         status:      raw.status,
         createdAt:   raw.createdAt,
-        // EFun 卡片默认有效期为卡片本身到期，不需要 validMinutes
         validMinutes: undefined,
+        // 透传原始 code 供后续 3DS 查询使用
+        redeemCode:  keyId,
       };
       ok          = true;
       activatedAt = raw.createdAt ?? startedAt;
     } else {
-      error = d.message ?? d.error ?? "EFun Card 激活失败，请检查卡密";
+      error = d.message ?? d.error ?? "EFun Card 激活失败，请检查卡密是否正确";
     }
 
   } else {
     // ===========================
     // 🔴 ActCard 处理逻辑（保持原有不变）
     // ===========================
-
     const payload = { ...body, key_id: keyId };
 
-    // 1) 先 redeem
     const redeem = await postJson(ACT_REDEEM_URL, payload).catch((e) => ({
       ok: false, status: 500, data: { error: String(e) },
     }));
-
-    // 2) 再 query
     const query = await postJson(ACT_QUERY_URL, payload).catch((e) => ({
       ok: false, status: 500, data: { error: String(e) },
     }));
@@ -345,6 +325,7 @@ export async function POST(request: Request) {
             ? Number(q?.expire_minutes ?? r?.expire_minutes)
             : undefined,
         expireTime: cardRaw.expire_time ? String(cardRaw.expire_time) : undefined,
+        redeemCode: keyId,
       };
       activatedAt = q?.used_time ?? r?.used_time ?? startedAt;
     }
@@ -355,11 +336,5 @@ export async function POST(request: Request) {
       : (q?.error || q?.message || r?.error || r?.message || "激活/查询失败，请检查卡密是否正确");
   }
 
-  return NextResponse.json({
-    ok,
-    error,
-    activatedAt,
-    card,
-    meta,
-  });
+  return NextResponse.json({ ok, error, activatedAt, card, meta });
 }
