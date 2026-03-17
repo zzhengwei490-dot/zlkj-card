@@ -262,6 +262,7 @@ export async function POST(request: Request) {
   if (isEFunKey(keyId)) {
     // ===========================
     // 🟢 EFun Card 开卡逻辑（UK- 前缀）
+    // 策略：先 redeem，若失败（卡已激活/409）则自动 fallback 到 query
     // ===========================
     const efunRes = await postJson(
       EFUN_REDEEM_URL,
@@ -269,27 +270,50 @@ export async function POST(request: Request) {
       efunHeaders()
     ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
 
-    meta = { efunStatus: efunRes.status };
-    const d = efunRes.data ?? {};
-    const success = d.success === true;
+    meta = { efunRedeemStatus: efunRes.status };
 
-    if (success && d.data) {
-      const raw = d.data;
+    // 判断 redeem 是否成功
+    const redeemData = efunRes.data ?? {};
+    const redeemSuccess = redeemData.success === true && redeemData.data;
+
+    // 若 redeem 失败（已使用/409/任何错误），自动 fallback 到 GET query 接口
+    let raw: any = redeemSuccess ? redeemData.data : null;
+
+    if (!raw) {
+      // fallback：通过 query 接口获取已激活的卡片信息
+      const queryRes = await getJson(
+        `${EFUN_BASE_URL}/cards/query/${encodeURIComponent(keyId)}`,
+        efunHeaders()
+      ).catch((e) => ({ ok: false, status: 500, data: { error: String(e) } }));
+
+      meta.efunQueryStatus = queryRes.status;
+      const queryData = queryRes.data ?? {};
+
+      if (queryData.success === true && queryData.data) {
+        raw = queryData.data;
+      } else {
+        // redeem 和 query 都失败，返回错误
+        error =
+          queryData.message ?? queryData.error ??
+          redeemData.message ?? redeemData.error ??
+          "卡密不存在或无法查询，请检查后重试";
+      }
+    }
+
+    if (raw) {
       card = {
-        cardId:      raw.cardId,
-        cardNumber:  raw.cardNumber  ? String(raw.cardNumber)  : undefined,
-        cvv:         raw.cvv         ? String(raw.cvv)         : undefined,
-        expiry:      raw.expiryDate  ?? undefined,
-        status:      raw.status,
-        createdAt:   raw.createdAt,
+        cardId:       raw.cardId,
+        cardNumber:   raw.cardNumber   ? String(raw.cardNumber)   : undefined,
+        cvv:          raw.cvv          ? String(raw.cvv)          : undefined,
+        expiry:       raw.expiryDate   ?? undefined,
+        status:       raw.status,
+        balance:      raw.balance,
+        createdAt:    raw.createdAt,
         validMinutes: undefined,
-        // 透传原始 code 供后续 3DS 查询使用
-        redeemCode:  keyId,
+        redeemCode:   keyId,
       };
       ok          = true;
       activatedAt = raw.createdAt ?? startedAt;
-    } else {
-      error = d.message ?? d.error ?? "EFun Card 激活失败，请检查卡密是否正确";
     }
 
   } else {
